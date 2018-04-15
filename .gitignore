@@ -75,3 +75,5 @@ target/
 config.py
 
 *.DS_Store
+
+foreground_separation/*.png
