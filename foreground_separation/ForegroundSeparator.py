@@ -2,8 +2,7 @@ import numpy as np
 from numpy import *
 from sklearn.cluster import KMeans
 import cv2
-from matplotlib import pyplot as plt
-import matplotlib.image as mpimg
+import foreground_separation.ImgProcessingHelper as img_helper
 
 
 def cluster_color_dict(k):
@@ -23,41 +22,6 @@ def cluster_color_dict(k):
     return dict[k]
 
 
-def load_img(img, flag=cv2.IMREAD_COLOR):
-    img = cv2.imread(img, flag)
-    # return cv2.resize(img, (0, 0), fx=0.25, fy=0.25)
-    return cv2.resize(img, (600, 800))
-
-
-def cvt_gbr_2_hsv(color):
-    return cv2.cvtColor(color, cv2.COLOR_BGR2HSV)
-
-
-def cvt_hsv_2_gbr(color):
-    return cv2.cvtColor(color, cv2.COLOR_HSV2BGR)
-
-
-def cvt_gbr_2_grayscale(color):
-    return cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
-
-
-def cvt_grayscale_2_gbr(color):
-    return cv2.cvtColor(color, cv2.COLOR_GRAY2BGR)
-
-
-def features_append_coord(img, scale):
-    s = img.shape
-    coord_array = np.empty([s[0], s[1], 2], dtype=uint8)
-    for i in range(s[0]):
-        for j in range(s[1]):
-            coord_array[i, j] = [i, j]
-    return np.append(img, coord_array * scale, 2)
-
-
-# def features_remove_coord(img):
-#     return np.delete(img, [3, 4], 2)
-
-
 def k_means_clustering(data, n_clusters, max_iter, n_init):
     clf = KMeans(init='k-means++', n_clusters=n_clusters, n_init=n_init, max_iter=max_iter)
     clf.fit(data)
@@ -72,22 +36,13 @@ def generate_labelled_img(labels, shape):
     result = np.empty(shape, dtype=uint8)
     for i in range(shape[0]):
         for j in range(shape[1]):
-            # scaled_value = scale_range(labels[i * shape[1] + j], 0, k-1, 0, 255)
-            # rgb_color = np.uint8([[[0, scaled_value, 0]]])
             color_code = cluster_color_dict(labels[i * shape[1] + j])[1]
             rgb_color = np.uint8([[color_code]])
-            result[i, j] = cvt_gbr_2_hsv(rgb_color)[0, 0]
+            result[i, j] = img_helper.cvt_gbr_2_hsv(rgb_color)[0, 0]
     return result
 
 
-def display_img(img):
-    plt.figure()
-    plt.imshow(mpimg.imread(img))
-    plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
-    plt.show()
-
-
-def select_foreground(k):
+def foreground_selection(k):
     print('Please select the foreground. Use white space to separate the numbers.')
     for i in range(k):
         print('%d. %s' % (i, cluster_color_dict(i)[0]))
@@ -134,45 +89,40 @@ def foreground_mask(masked_img_gray, img_size):
     return mask
 
 
-def reduce_noise(img, h=10):
-    return cv2.fastNlMeansDenoising(img, None, h, templateWindowSize=7, searchWindowSize=21)
-
-
 def generate_img_contoured_foreground(img, h):
-    img = reduce_noise(cvt_gbr_2_grayscale(img), h)
+    img = img_helper.reduce_noise(img_helper.cvt_gbr_2_grayscale(img), h)
     _, contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     out = np.zeros_like(img)
     cv2.drawContours(out, contours, -1, 255, thickness=-1)
-    out = reduce_noise(out, h)
+    out = img_helper.reduce_noise(out, h)
     return out
 
 
-def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter=2000, clustering_n_init=10, h=50):
-    img_hsv = cvt_gbr_2_hsv(load_img(img))
+def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter=1000, clustering_n_init=10, h=50):
+    img_hsv = img_helper.cvt_gbr_2_hsv(img_helper.load_img(img, [600, 800]))
     s = img_hsv.shape
 
-    img_hsv = features_append_coord(img_hsv, coord_features_scale)
+    img_hsv = img_helper.features_append_coord(img_hsv, coord_features_scale)
     data = img_hsv.reshape(s[0] * s[1], s[2] + 2)
 
     labels, centroids = k_means_clustering(data, k, max_iter=clustering_max_iter, n_init=clustering_n_init)
 
     labelled_img = generate_labelled_img(labels, s)
-    labelled_img = cvt_hsv_2_gbr(labelled_img)
+    labelled_img = img_helper.cvt_hsv_2_gbr(labelled_img)
 
-    cv2.imwrite('result.png', labelled_img)
+    img_helper.save_img(labelled_img, 'result.png')
+    img_helper.display_img('result.png')
 
-    display_img('result.png')
-    foreground_clusters = select_foreground(k)
-
+    foreground_clusters = foreground_selection(k)
     masked_img = generate_masked_img(foreground_clusters, labels, s)
-
     masked_img_gray = generate_img_contoured_foreground(masked_img, h)
 
-    cv2.imwrite('masked_result.png', masked_img_gray)
-    display_img('masked_result.png')
+    img_helper.save_img(masked_img_gray, 'masked_result.png')
+    img_helper.display_img('masked_result.png')
 
     return foreground_mask(masked_img_gray, [s[0], s[1]])
 
 
 if __name__ == '__main__':
-    separate_foreground('../data/2.jpeg')
+    # separate_foreground('../data/2.jpeg')
+    separate_foreground('../data/sample.png')
