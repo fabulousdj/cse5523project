@@ -1,8 +1,8 @@
 import numpy as np
 from numpy import *
-from sklearn.cluster import KMeans
 import cv2
 import foreground_separation.ImgProcessingHelper as img_helper
+import foreground_separation.ClusteringHelper as clustering_helper
 
 
 def cluster_color_dict(k):
@@ -22,24 +22,18 @@ def cluster_color_dict(k):
     return dict[k]
 
 
-def k_means_clustering(data, n_clusters, max_iter, n_init):
-    clf = KMeans(init='k-means++', n_clusters=n_clusters, n_init=n_init, max_iter=max_iter)
-    clf.fit(data)
-    return clf.labels_, clf.cluster_centers_
-
-
 def scale_range(input, in_min, in_max, out_min, out_max):
     return ((input - in_min) / (in_max - in_min)) * (out_max - out_min) + out_min;
 
 
 def generate_labelled_img(labels, shape):
-    result = np.empty(shape, dtype=uint8)
+    out = np.empty(shape, dtype=uint8)
     for i in range(shape[0]):
         for j in range(shape[1]):
             color_code = cluster_color_dict(labels[i * shape[1] + j])[1]
             rgb_color = np.uint8([[color_code]])
-            result[i, j] = img_helper.cvt_gbr_2_hsv(rgb_color)[0, 0]
-    return result
+            out[i, j] = img_helper.cvt_gbr_2_hsv(rgb_color)[0, 0]
+    return out
 
 
 def foreground_selection(k):
@@ -72,21 +66,52 @@ def is_foreground(row, col, foreground_clusters, labels, img_size):
 
 
 def generate_masked_img(foreground_clusters, labels, shape):
-    result = np.zeros(shape, dtype=uint8)
+    out = np.zeros(shape, dtype=uint8)
     img_size = [shape[0], shape[1]]
     for i in range(shape[0]):
         for j in range(shape[1]):
             if is_foreground(i, j, foreground_clusters, labels, img_size):
-                result[i, j] = [255, 255, 255]
-    return result
+                out[i, j] = [255, 255, 255]
+    return out
 
 
 def foreground_mask(masked_img_gray, img_size):
     mask = np.empty(img_size, dtype=bool)
     for i in range(img_size[0]):
         for j in range(img_size[1]):
-            mask[i, j] = (masked_img_gray[i, j] != 0)
+            mask[i, j] = (masked_img_gray[i, j] >= 128)
     return mask
+
+
+# edge_len must be odd
+def get_block(row, col, matrix, edge_len):
+    size = matrix.shape
+    upper = row - edge_len // 2
+    lower = row + edge_len // 2
+    left = col - edge_len // 2
+    right = col + edge_len // 2
+
+    if upper < 0:
+        upper = 0
+    if lower >= size[0]:
+        lower = size[0] - 1
+    if left < 0:
+        left = 0
+    if right >= size[1]:
+        right = size[1] - 1
+
+    return matrix[upper:lower+1, left:right+1].copy()
+
+
+def smoothing_masked_img(masked_img_gray, img_size):
+    out = np.zeros(img_size, dtype=np.uint8)
+    block_edge_len = 5
+    for i in range(img_size[0]):
+        for j in range(img_size[1]):
+            block = get_block(i, j, masked_img_gray, edge_len=15)
+            block_size = block.shape
+            out[i, j] = (sum(sum(arr) for arr in block) - masked_img_gray[i, j]) // (block_size[0] * block_size[1] - 1)
+    return out
 
 
 def generate_img_contoured_foreground(img, h):
@@ -103,9 +128,13 @@ def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter
     s = img_hsv.shape
 
     img_hsv = img_helper.features_append_coord(img_hsv, coord_features_scale)
-    data = img_hsv.reshape(s[0] * s[1], s[2] + 2)
 
-    labels, centroids = k_means_clustering(data, k, max_iter=clustering_max_iter, n_init=clustering_n_init)
+    labels = clustering_helper.k_means_clustering(
+        img_hsv,
+        shape=[s[0], s[1], s[2] + 2],
+        n_clusters=k,
+        max_iter=clustering_max_iter,
+        n_init=clustering_n_init)
 
     labelled_img = generate_labelled_img(labels, s)
     labelled_img = img_helper.cvt_hsv_2_gbr(labelled_img)
@@ -116,6 +145,7 @@ def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter
     foreground_clusters = foreground_selection(k)
     masked_img = generate_masked_img(foreground_clusters, labels, s)
     masked_img_gray = generate_img_contoured_foreground(masked_img, denoise_level)
+    masked_img_gray = smoothing_masked_img(masked_img_gray, [s[0], s[1]])
 
     img_helper.save_img(masked_img_gray, 'masked_result.png')
     img_helper.display_img_file('masked_result.png')
@@ -124,6 +154,6 @@ def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter
 
 
 if __name__ == '__main__':
-    img = img_helper.load_img('../data/bottle.png', [600, 800])
+    img = img_helper.load_img('../data/selfie.jpeg', [600, 800])
     # separate_foreground('../data/selfie.jpeg')
-    separate_foreground(img)
+    separate_foreground(img, k=8)

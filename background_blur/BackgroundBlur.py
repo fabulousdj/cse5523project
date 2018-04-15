@@ -18,10 +18,15 @@ def merge(blurred_img, origin_img, mask, img_size):
 
 
 def background_blur(img, intensity=5):
-    mask = fg_separator.separate_foreground(img)
+    mask = fg_separator.separate_foreground(img, clustering_n_init=5)
     blurred_img = blur(img, intensity)
     s = img.shape
-    return merge(blurred_img, img, mask, [s[0], s[1]])
+    bg_blurred_img = merge(blurred_img, img, mask, [s[0], s[1]])
+
+    img_helper.save_img(bg_blurred_img, 'blurred_result.png')
+    img_helper.display_img_file('blurred_result.png')
+
+    return bg_blurred_img
 
 
 if __name__ == '__main__':
