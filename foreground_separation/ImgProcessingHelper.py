@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
 
-def load_img(img, size, flag=cv2.IMREAD_COLOR):
-    img = cv2.imread(img, flag)
+def load_img(file, size, flag=cv2.IMREAD_COLOR):
+    img = cv2.imread(file, flag)
     # return cv2.resize(img, (0, 0), fx=0.25, fy=0.25)
     return cv2.resize(img, (size[0], size[1]))
 
@@ -43,8 +43,8 @@ def reduce_noise(img, h=10):
     return cv2.fastNlMeansDenoising(img, None, h, templateWindowSize=7, searchWindowSize=21)
 
 
-def display_img(img):
+def display_img_file(file):
     plt.figure()
-    plt.imshow(mpimg.imread(img))
+    plt.imshow(mpimg.imread(file))
     plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
     plt.show()

@@ -85,7 +85,7 @@ def foreground_mask(masked_img_gray, img_size):
     mask = np.empty(img_size, dtype=bool)
     for i in range(img_size[0]):
         for j in range(img_size[1]):
-            mask[i, j] = (masked_img_gray[i, j] == 0)
+            mask[i, j] = (masked_img_gray[i, j] != 0)
     return mask
 
 
@@ -98,8 +98,8 @@ def generate_img_contoured_foreground(img, h):
     return out
 
 
-def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter=1000, clustering_n_init=10, h=50):
-    img_hsv = img_helper.cvt_gbr_2_hsv(img_helper.load_img(img, [600, 800]))
+def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter=1000, clustering_n_init=10, denoise_level=50):
+    img_hsv = img_helper.cvt_gbr_2_hsv(img)
     s = img_hsv.shape
 
     img_hsv = img_helper.features_append_coord(img_hsv, coord_features_scale)
@@ -111,18 +111,19 @@ def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter
     labelled_img = img_helper.cvt_hsv_2_gbr(labelled_img)
 
     img_helper.save_img(labelled_img, 'result.png')
-    img_helper.display_img('result.png')
+    img_helper.display_img_file('result.png')
 
     foreground_clusters = foreground_selection(k)
     masked_img = generate_masked_img(foreground_clusters, labels, s)
-    masked_img_gray = generate_img_contoured_foreground(masked_img, h)
+    masked_img_gray = generate_img_contoured_foreground(masked_img, denoise_level)
 
     img_helper.save_img(masked_img_gray, 'masked_result.png')
-    img_helper.display_img('masked_result.png')
+    img_helper.display_img_file('masked_result.png')
 
     return foreground_mask(masked_img_gray, [s[0], s[1]])
 
 
 if __name__ == '__main__':
-    # separate_foreground('../data/2.jpeg')
-    separate_foreground('../data/sample.png')
+    img = img_helper.load_img('../data/bottle.png', [600, 800])
+    # separate_foreground('../data/selfie.jpeg')
+    separate_foreground(img)
