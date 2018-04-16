@@ -12,8 +12,8 @@ def merge(blurred_img, origin_img, mask, img_size):
     out = blurred_img.copy()
     for i in range(img_size[0]):
         for j in range(img_size[1]):
-            if mask[i, j]:
-                out[i, j] = origin_img[i, j]
+            p = mask[i, j] / 255.0
+            out[i, j] = origin_img[i, j] * p + blurred_img[i, j] * (1 - p)
     return out
 
 
@@ -32,6 +32,4 @@ def background_blur(img, intensity=5):
 if __name__ == '__main__':
     img = img_helper.load_img('../data/selfie.jpeg', [600, 800])
     # img = img_helper.load_img('../data/bottle.png', [600, 800])
-    bg_blurred_img = background_blur(img, intensity=25)
-    cv2.imshow("blurred", bg_blurred_img)
-    cv2.waitKey()
+    background_blur(img, intensity=25)

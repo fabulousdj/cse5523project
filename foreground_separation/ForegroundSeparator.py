@@ -75,14 +75,6 @@ def generate_masked_img(foreground_clusters, labels, shape):
     return out
 
 
-def foreground_mask(masked_img_gray, img_size):
-    mask = np.empty(img_size, dtype=bool)
-    for i in range(img_size[0]):
-        for j in range(img_size[1]):
-            mask[i, j] = (masked_img_gray[i, j] >= 128)
-    return mask
-
-
 # edge_len must be odd
 def get_block(row, col, matrix, edge_len):
     size = matrix.shape
@@ -150,7 +142,7 @@ def separate_foreground(img, k=8, coord_features_scale=0.25, clustering_max_iter
     img_helper.save_img(masked_img_gray, 'masked_result.png')
     img_helper.display_img_file('masked_result.png')
 
-    return foreground_mask(masked_img_gray, [s[0], s[1]])
+    return masked_img_gray
 
 
 if __name__ == '__main__':
